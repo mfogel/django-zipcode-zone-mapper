@@ -1,12 +1,12 @@
 
 from distutils.core import setup
 
-setup(  name='zone-mapper',
+setup(  name='django-zone-mapper',
         version='0.1.0',
         description='Build kml files with different colored zones',
         author='Mike Fogel',
         author_email='mike@fogel.ca',
-        url='http://svn.bullseyelabs.com/django-apps/zone-mapper/',
+        url='http://svn.bullseyelabs.com/django-apps/django-zone-mapper/',
         packages=['zone_mapper'],
         classifiers=[
             'Development Status :: 3 - Alpha',
