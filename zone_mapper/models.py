@@ -6,8 +6,7 @@
 from django.contrib.gis.db import models
 
 class Zcta(models.Model):
-    # Note: "LayerMapError: Django field type "PositiveIntegerField" has no OGR mapping (yet)." (08/24/09)
-    zcta = models.IntegerField(primary_key=True) 
+    zcta = models.PositiveIntegerField(primary_key=True) 
     surcharge = models.BooleanField(default=False)
     #classfp = models.CharField(max_length=2)    # don't need
     #mtfcc = models.CharField(max_length=5)      # don't need
