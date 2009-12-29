@@ -2,7 +2,7 @@
 from django.core.management.base import NoArgsCommand
 
 from sys import stdout
-from deliveryMap.models import Zcta
+from zone_mapper.models import Zcta
 
 class Command(NoArgsCommand):
 

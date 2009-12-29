@@ -6,8 +6,8 @@
 from django.core.management.base import LabelCommand
 
 import os
-from deliveryMap.models import Zcta
-from deliveryMap.surcharges import getDeliveryZips, getSurchargeZips
+from zone_mapper.models import Zcta
+from zone_mapper.surcharges import getDeliveryZips, getSurchargeZips
 from django.contrib.gis.gdal.datasource import DataSource
 from django.contrib.gis.gdal.layer import Layer
 from django.contrib.gis.gdal.feature import Feature
