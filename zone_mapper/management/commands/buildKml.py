@@ -2,7 +2,7 @@
 from django.core.management.base import NoArgsCommand
 
 from sys import stdout
-from zone_mapper.models import Zcta
+from zone_mapper.models import Zcta, Zone
 
 class Command(NoArgsCommand):
 
@@ -10,35 +10,15 @@ class Command(NoArgsCommand):
 
     def handle_noargs(self, **options):
 
-        # collect all our polygons and merge them all together
-        freeZctas = Zcta.objects.filter(surcharge=False)
-        freeMultiPoly = None
-        for fz in freeZctas:
-            if freeMultiPoly is None: freeMultiPoly = fz.geom
-            else: freeMultiPoly = freeMultiPoly.union(fz.geom)
-
-        surchargeZctas = Zcta.objects.filter(surcharge=True)
-        surchargeMultiPoly = None
-        for sz in surchargeZctas:
-            if surchargeMultiPoly is None: surchargeMultiPoly = sz.geom
-            else: surchargeMultiPoly = surchargeMultiPoly.union(sz.geom)
-
-        # now fill up a buffer list for the kml
         self.initKml()
 
-        cnt = 0
-        for p in freeMultiPoly:
-            self.initPoly('transGreenPoly', cnt)
-            self.addPoly(p)
-            self.closePoly()
-            cnt += 1
-
-        cnt = 0
-        for p in surchargeMultiPoly:
-            self.initPoly('transYellowPoly', cnt)
-            self.addPoly(p)
-            self.closePoly()
-            cnt += 1
+        for zone in Zone.objects.all():
+            self.addStyle(zone.name, zone.fill_color, zone.border_width,
+                          zone.border_color)
+            for poly in zone.geom_set.all():
+                self.initPoly(zone.name)
+                self.addPoly(poly)
+                self.closePoly()
 
         self.closeKml()
         self.printKml(verbose=True)
@@ -59,26 +39,30 @@ class Command(NoArgsCommand):
         self._kmls.append('<?xml version="1.0" encoding="UTF-8"?>')
         self._kmls.append('<kml xmlns="http://www.opengis.net/kml/2.2">')
         self._kmls.append('<Document>')
-        self.addStyle('transGreenPoly', '7d00ff00', 'd022ff22')
-        self.addStyle('transYellowPoly', '7d00ffff', 'd022ffff')
 
-    def addStyle(self, name, fillColor, lineColor):
+    def addStyle(self, name, fll_color, border_width=0, border_color=None):
         self._kmls.append('<Style id="%s">' % (name))
-        self._kmls.append('<LineStyle>')
-        self.addProperty('width', '3')
-        self.addProperty('color', lineColor)
-        self._kmls.append('</LineStyle>')
+
+        if border_width > 0:
+            self._kmls.append('<LineStyle>')
+            self.addProperty('width', border_width)
+            if border_color is None:
+                border_color = fill_color
+            self.addProperty('color', border_color)
+            self._kmls.append('</LineStyle>')
+
         self._kmls.append('<PolyStyle>')
-        self.addProperty('color', fillColor)
+        self.addProperty('color', fill_color)
         self._kmls.append('</PolyStyle>')
+
         self._kmls.append('</Style>')
 
     def closeKml(self):
         self._kmls.append('</Document>')
         self._kmls.append('</kml>')
 
-    def initPoly(self, style, cnt):
-        self._kmls.append('<Placemark id="%s_%d">' % (style, cnt))
+    def initPoly(self, style):
+        self._kmls.append('<Placemark>')
         self.addProperty('styleUrl', '#%s' % (style))
         self._kmls.append('<Polygon>')
 

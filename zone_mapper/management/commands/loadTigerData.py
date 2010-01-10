@@ -3,74 +3,75 @@
 # ./manage.py ogrinspect ../../tiger_data/tl_2008_us_zcta5.shp zcta --mapping --multi
 # and http://geodjango.org/docs/tutorial.html
 
+from os.path import abspath
+from warnings import warn
+
 from django.core.management.base import LabelCommand
 
-import os
-from zone_mapper.models import Zcta
-from zone_mapper.surcharges import getDeliveryZips, getSurchargeZips
 from django.contrib.gis.gdal.datasource import DataSource
 from django.contrib.gis.gdal.layer import Layer
 from django.contrib.gis.gdal.feature import Feature
 from django.contrib.gis.utils import LayerMapping
 from django.contrib.gis.gdal.prototypes import ds as capi
+from django.contrib.gis.geos.collections import MultiPolygon
+
+from zone_mapper.models import Zone, ZipCode, Zcta
 
 class ZctaLayer(Layer):
 
     def __init__(self, layer_ptr, ds):
         super(ZctaLayer, self).__init__(layer_ptr, ds)
-        self._deliveryZips = getDeliveryZips()
-        self._numZips = len(self._deliveryZips)
 
-        # walk through and establish a mapping between the index we
-        # present to the client, and the index we use in the file
-        self._indexMapping = []
+        self._pknum = 0
+        self._pkorder = list()
+        self._pk2ftnum = dict()
 
         # adpted this logic from Layer.__getitem__
-        for i in range(self.num_feat):
-            ft = self._make_feature(i)
-            if ft['ZCTA5CE'].as_int() in self._deliveryZips:
-                self._indexMapping.append(i)
+        for ftnum in range(self.num_feat):
+            ft = super(ZctaLayer, self).__getitem__(ftnum)
+            zipcode = ft['ZCTA5CE'].as_int()
+            try:
+                zipcode = ZipCode.objects.get(zipcode=zipcode)
+            except ZipCode.DoesNotExist:
+                continue
+            self._pk2ftnum[zipcode.pk] = ftnum; 
+            self._pkorder.append(zipcode.pk)
 
-        if not len(self._indexMapping) == self._numZips:
-            zips_not_found = []
-            for z in self._deliveryZips:
-                found = False
-                for ft in self:
-                    if ft['ZCTA5CE'].as_int() == z:
-                        found = True
-                        break
-                if not found:
-                    zips_not_found.append(str(z))
-            except_text = 'Following zip codes were not found: ' 
-            except_text += ', '.join(zips_not_found) + '. Aborting'
-            raise Exception(except_text)
+        self._pknum = len(self._pkorder)
+
+        for zipcode in ZipCode.objects.all():
+            if not self._pk2ftnum.has_key(zipcode.pk):
+                warn("Zip Code %i in db but not in shape file, ignoring." %
+                     zipcode.zipcode, RuntimeWarning)
 
     def __getitem__(self, index):
         # adpting logic from Layer.__getitem__
         if isinstance(index, (int, long)):
-            # accessing a single element
-            if index < 0 or index >= self._numZips:
-                raise OGRIndexError('Index requested out of range')
-            item = self._make_feature(self._indexMapping[index])
-            return item
-        elif isinstance(index, slice):
+            try:
+                pk = self._pkorder[index]
+            except IndexError:
+                raise OGRIndexError("Index requested out of range")
+            fr = super(ZctaLayer, self).__getitem__(self._pk2ftnum(pk))
+            return ft;
+
+        if isinstance(index, slice):
             # slice requested
             result = []
-            for clientId in xrange(index.indices(self._numZips)):
-                item = self._make_feature(self._indexMapping(clientId))
-                result.append(item)
+            for clientId in xrange(index.indices(self._pknum)):
+                result.append(self[clientId])
             return result
-        else:
-            raise TypeError('Integers and slices may only be used when indexing OGR Layers.')
+
+        raise TypeError("Only ints and slices can be used when " +
+                        "indexing OGR Layers.")
 
     def __iter__(self):
         # adpted from Layer.__iter__
-        for i in xrange(self._numZips):
-            rawft = capi.get_feature(self._ptr, self._indexMapping[i])
+        for pk in self._pkorder:
+            rawft = capi.get_feature(self._ptr, self._pk2ftnum[pk])
             yield Feature(rawft, self._ldefn)
 
     def __len__(self):
-        return self._numZips
+        return self._pknum
 
 
 class ZctaSource(DataSource):
@@ -83,33 +84,36 @@ class ZctaSource(DataSource):
 
 class Command(LabelCommand):
 
-    help = "Loads the given Tiger ZCTA SHP file into the db, and trims it down to minimal size."
+    help = 'Loads the needed data from given Tiger ZCTA SHP file into the db'
     args = 'tigerPath'
     label = 'path to a Tiger ZCTA SHP file'
 
     zcta_mapping = {
-        'zcta' : 'ZCTA5CE',
+        'zipcode' : {'zipcode': 'ZCTA5CE'},
         #'classfp' : 'CLASSFP',     # not needed
         #'mtfcc' : 'MTFCC',         # not needed
         #'funcstat' : 'FUNCSTAT',   # not needed
         'geom' : 'MULTIPOLYGON',
     }
 
-
     def handle_label(self, tigerPath, **options):
-        # first clear out any existing data from the db
-        Zcta.objects.all().delete()
 
-        tigerAbsPath = os.path.abspath(os.path.join(os.getcwd(), tigerPath))
-        ds = ZctaSource(tigerAbsPath)
-
+        ds = ZctaSource(abspath(tigerPath))
         lm = LayerMapping(Zcta, ds, Command.zcta_mapping)
         lm.save()
 
-        # now go through the database and update eveyrone for the surcharges
-        surchargZips = getSurchargeZips()
-        zctas = Zcta.objects.all()
-        for z in zctas:
-            z.surcharge = z.zcta in surchargZips
-            z.save()
+        # consolidate all a given zone's zcta's into the zone's geom field
+        for zone in Zone.objects.all():
+            # exclude zipcodes for which there was nothing in the shp file
+            zipcode_qs = zone.zipcode_set.exclude(zcta__isnull=True)
+            if zipcode_qs.count():
+                zipcodes = zipcode_qs.all()
+                multipoly = zipcodes[0].zcta.geom
+                for zipcode in zipcodes[1:]:
+                    multipoly = multipoly.union(zipcode.zcta.geom)
+                # the multipolygon.union() can return a straight polygon
+                if not isinstance(multipoly, MultiPolygon):
+                    multipoly = MultiPolygon(multipoly)
+                zone.geom = multipoly
+                zone.save()
 
