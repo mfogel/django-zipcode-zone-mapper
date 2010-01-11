@@ -83,9 +83,10 @@ class ZctaSource(DataSource):
 
 class Command(LabelCommand):
 
-    help = 'Loads the needed data from given Tiger ZCTA SHP file into the db'
-    args = 'tigerPath'
-    label = 'path to a Tiger ZCTA SHP file'
+    help = "Loads the needed data from given Tiger ZCTA SHP file into " +
+           "the database"
+    args = "tigerpath"
+    label = "path to a Tiger ZCTA SHP file"
 
     zcta_mapping = {
         'zipcode' : {'zipcode': 'ZCTA5CE'},
@@ -95,9 +96,9 @@ class Command(LabelCommand):
         'geom' : 'MULTIPOLYGON',
     }
 
-    def handle_label(self, tigerPath, **options):
+    def handle_label(self, tigerpath, **options):
 
-        ds = ZctaSource(abspath(tigerPath))
+        ds = ZctaSource(abspath(tigerpath))
         lm = LayerMapping(Zcta, ds, Command.zcta_mapping)
         lm.save()
 
