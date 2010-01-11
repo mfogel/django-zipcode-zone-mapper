@@ -13,7 +13,6 @@ from django.contrib.gis.gdal.layer import Layer
 from django.contrib.gis.gdal.feature import Feature
 from django.contrib.gis.utils import LayerMapping
 from django.contrib.gis.gdal.prototypes import ds as capi
-from django.contrib.gis.geos.collections import MultiPolygon
 
 from zone_mapper.models import Zone, ZipCode, Zcta
 
@@ -101,19 +100,4 @@ class Command(LabelCommand):
         ds = ZctaSource(abspath(tigerPath))
         lm = LayerMapping(Zcta, ds, Command.zcta_mapping)
         lm.save()
-
-        # consolidate all a given zone's zcta's into the zone's geom field
-        for zone in Zone.objects.all():
-            # exclude zipcodes for which there was nothing in the shp file
-            zipcode_qs = zone.zipcode_set.exclude(zcta__isnull=True)
-            if zipcode_qs.count():
-                zipcodes = zipcode_qs.all()
-                multipoly = zipcodes[0].zcta.geom
-                for zipcode in zipcodes[1:]:
-                    multipoly = multipoly.union(zipcode.zcta.geom)
-                # the multipolygon.union() can return a straight polygon
-                if not isinstance(multipoly, MultiPolygon):
-                    multipoly = MultiPolygon(multipoly)
-                zone.geom = multipoly
-                zone.save()
 

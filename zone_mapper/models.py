@@ -3,6 +3,7 @@
 # ./manage.py ogrinspect tiger_data/tl_2008_us_zcta5.shp zcta --mapping --multi
 
 from django.contrib.gis.db import models
+from django.contrib.gis.geos.collections import MultiPolygon
 
 # 900913 is the 'google SRID' (meaning mercator)
 SRID = 900913
@@ -17,11 +18,28 @@ class Zone(models.Model):
     border_width = models.PositiveIntegerField(blank=True, default=0)
     border_color = models.CharField(blank=True, max_length=31)
 
-    geom = models.MultiPolygonField(srid=SRID, blank=True, editable=False,
-                                    null=True, spatial_index=False)
-
     def __unicode__(self):
         return self.name
+
+    def multipoly(self):
+        """Get the multipolygon for this zone."""
+        multipoly = None
+        # exclude zipcodes for which there was nothing in the shp file
+        zipcode_qs = self.zipcode_set.exclude(zcta__isnull=True)
+        if zipcode_qs.count():
+            zipcodes = zipcode_qs.all()
+            multipoly = zipcodes[0].zcta.geom
+            for zipcode in zipcodes[1:]:
+                multipoly = multipoly.union(zipcode.zcta.geom)
+                # the multipolygon.union() can return a straight polygon
+            if not isinstance(multipoly, MultiPolygon):
+                multipoly = MultiPolygon(multipoly)
+        return multipoly
+
+    def orphan_zipcodes(self):
+        """Get the ZipCodes for this zone that have no shape info."""
+        return self.zipcode_set.filter(zcta__isnull=True)
+
 
 class ZipCode(models.Model):
 
