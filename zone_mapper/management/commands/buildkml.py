@@ -11,7 +11,7 @@ class Command(NoArgsCommand):
 
     help = "Builds the KML file for the current contents of the deliveryMap zcta database.  Output to stdout."
 
-    # stuff for 'verbose' mode to format indenting nicely
+    # stuff to format indenting nicely
     _one_indent = '  '
     _indent_n_skip = 3 # don't indent first # of open tags
     _re_tagopen = re.compile('^<[^/]')
@@ -40,22 +40,19 @@ class Command(NoArgsCommand):
                 self.closePoly()
 
         self.closeKml()
-        self.printKml(verbose=True)
+        self.printKml()
 
-    def printKml(self, verbose=False):
+    def printKml(self):
         for line in self._kmls:
-            self.writeLine(line, verbose)
+            self.writeLine(line)
 
-    def writeLine(self, line, verbose=False):
-        if verbose:
-            if Command._re_tagclose.match(line):
-                self._cur_indent -= 1
-            stdout.write(Command._one_indent * self._cur_indent)
-            if Command._re_tagboth.match(line):
-                pass
-            elif Command._re_tagopen.match(line):
-                self._cur_indent += 1
-
+    def writeLine(self, line):
+        if Command._re_tagclose.match(line):
+            self._cur_indent -= 1
+        stdout.write(Command._one_indent * self._cur_indent)
+        if not Command._re_tagboth.match(line) and \
+           Command._re_tagopen.match(line):
+            self._cur_indent += 1
         stdout.write(line)
         stdout.write('\n')
 

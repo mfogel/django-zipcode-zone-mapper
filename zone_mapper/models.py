@@ -46,7 +46,6 @@ class ZipCode(models.Model):
     class Meta:
         verbose_name = 'Zip Code'
 
-    id = models.AutoField(primary_key=True)
     # FIXME: min/max bounds?
     zipcode = models.IntegerField(unique=True, verbose_name='Zip Code')
     zone = models.ForeignKey(Zone)
