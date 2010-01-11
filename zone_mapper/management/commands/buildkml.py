@@ -2,6 +2,7 @@
 import re
 import sys
 from warnings import warn
+from xml.etree import ElementTree as ET
 
 from django.core.management.base import NoArgsCommand
 
@@ -30,32 +31,52 @@ class Command(NoArgsCommand):
             for poly in multipoly:
                 kml.add_poly(poly, zone.name)
 
-        kml.close()
         kml.write(sys.stdout)
 
 class Kml:
 
     # stuff to format indenting nicely
-    _one_indent = '  '
+    _indent_step = '  '
     _indent_n_skip = 3 # don't indent first # of open tags
     _re_tagopen = re.compile('^<[^/]')
     _re_tagclose = re.compile('^</')
     _re_tagboth = re.compile('<[^/].*>.*</.*>$')
 
+    _kml_xmlns = "http://www.opengis.net/kml/2.2"
+
     def __init__(self):
         self._cur_indent = 0 - Kml._indent_n_skip
         self._lines = []
-        self._lines.append('<?xml version="1.0" encoding="UTF-8"?>')
-        self._lines.append('<kml xmlns="http://www.opengis.net/kml/2.2">')
-        self._lines.append('<Document>')
-
-    def close(self):
-        self._lines.append('</Document>')
-        self._lines.append('</kml>')
+        # FIXME: can't ElementTree handle this xml namespace decl gracefully?
+        self._kml_elm = ET.Element('kml', {'xmlns': Kml._kml_xmlns})
+        self._doc_elm = ET.SubElement(self._kml_elm, 'Document')
+        self._tree = ET.ElementTree(self._kml_elm)
 
     def write(self, fh):
-        for line in self._lines:
-            self._write_line(line, fh)
+        # FIXME: someway to get ElementTree to do this?
+        fh.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        self.indent(self._kml_elm)
+        self._tree.write(fh)
+
+    def indent(self, elem, level=0):
+        # adpted this from http://infix.se/2007/02/06/gentlemen-indent-your-xml
+        i = "\n" + level * Kml._indent_step
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = i + Kml._indent_step
+            for e in elem:
+                self.indent(e, level+1)
+                if not e.tail or not e.tail.strip():
+                    e.tail = i + Kml._indent_step
+            if not e.tail or not e.tail.strip():
+                e.tail = i
+        else:
+            if level and (not elem.tail or not elem.tail.strip()):
+                elem.tail = i 
+        # one off the <coordinates> formatting
+        if elem.tag == 'coordinates':
+            elem.text = elem.text.replace("\n", i + Kml._indent_step)
+            elem.text = elem.text[:-len(Kml._indent_step)]
 
     def _write_line(self, line, fh):
         if Kml._re_tagclose.match(line):
@@ -67,46 +88,36 @@ class Kml:
         fh.write('\n')
 
     def add_style(self, name, fill_color, border_width=0, border_color=None):
-        self._lines.append('<Style id="%s">' % (name))
+        style_elm = ET.SubElement(self._doc_elm, 'Style', {'id': name})
 
         if border_width > 0:
-            self._lines.append('<LineStyle>')
-            self.add_property('width', border_width)
+            linestyle_elm = ET.SubElement(style_elm, 'LineStyle')
+            self.add_simple_child_tag(linestyle_elm, 'width', border_width)
             if border_color is None:
                 border_color = fill_color
-            self.add_property('color', border_color)
-            self._lines.append('</LineStyle>')
+            self.add_simple_child_tag(linestyle_elm, 'color', border_color)
 
-        self._lines.append('<PolyStyle>')
-        self.add_property('color', fill_color)
-        self._lines.append('</PolyStyle>')
-
-        self._lines.append('</Style>')
+        polystyle_elm = ET.SubElement(style_elm, 'PolyStyle')
+        self.add_simple_child_tag(polystyle_elm, 'color', fill_color)
 
     def add_poly(self, poly, style):
-        self._lines.append('<Placemark>')
-        self.add_property('styleUrl', '#%s' % (style))
-        self._lines.append('<Polygon>')
-        self._lines.append('<outerBoundaryIs>')
-        self.add_linear_ring(poly.exterior_ring)
-        self._lines.append('</outerBoundaryIs>')
+        placemark_elm = ET.SubElement(self._doc_elm, 'Placemark')
+        self.add_simple_child_tag(placemark_elm, 'styleUrl', '#%s' % style)
+        poly_elm = ET.SubElement(placemark_elm, 'Polygon')
+        outer_elm = ET.SubElement(poly_elm, 'outerBoundaryIs')
+        self.add_linear_ring(outer_elm, poly.exterior_ring)
         for i in range(poly.num_interior_rings):
-            self._lines.append('<innerBoundaryIs>')
-            self.add_linear_ring(poly[1+i])
-            self._lines.append('</innerBoundaryIs>')
-        self._lines.append('</Polygon>')
-        self._lines.append('</Placemark>')
+            inner_elm = ET.SubElement(poly_elm, 'innerBoundaryIs')
+            self.add_linear_ring(inner_elm, poly[1+i])
 
-    def add_linear_ring(self, lr):
-        self._lines.append('<LinearRing>')
-        self._lines.append('<coordinates>')
-        for cords in lr:
-            self._lines.append('%f,%f' % (cords[0], cords[1]))
-        self._lines.append('</coordinates>')
-        self._lines.append('</LinearRing>')
+    def add_linear_ring(self, parent_elm, ring):
+        ring_elm = ET.SubElement(parent_elm, 'LinearRing')
+        cords_elm = ET.SubElement(ring_elm, 'coordinates')
+        cords_elm.text = '\n'
+        for cords in ring:
+            cords_elm.text += '%f,%f\n' % (cords[0], cords[1])
 
-    def add_property(self, tag, value):
-        # note that 'color' and 'styleUrl' tags are whitespace-sensitive
-        self._lines.append('<%s>%s</%s>' % (tag, value, tag))
-
+    def add_simple_child_tag(self, parent_elm, tagname, tagtext):
+        child = ET.SubElement(parent_elm, tagname)
+        child.text = '%s' % tagtext
 
