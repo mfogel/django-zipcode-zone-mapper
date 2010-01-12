@@ -83,7 +83,7 @@ class ZctaSource(DataSource):
 
 class Command(LabelCommand):
 
-    help = "Loads the needed data from given Tiger ZCTA SHP file into " +
+    help = "Loads the needed data from given Tiger ZCTA SHP file into " + \
            "the database"
     args = "tigerpath"
     label = "path to a Tiger ZCTA SHP file"
