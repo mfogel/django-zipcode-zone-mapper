@@ -1,4 +1,4 @@
-django-zone-mapper
+django-zipcode-zone-mapper
 
 This apps builds a kml file for you with different zones as different
 colors of your choosing.  The zones are built out of zcta's, a census
@@ -6,10 +6,19 @@ bureau approximation of a zip code.
 
 This app relies heavily on the django.contrib.gis module.
 
-Two commands.  'loadTigerData' is to be run first, then 'buildKml' can be
-ran multiple times.
+General workflow to get started:
 
- 1. ./manage.py loadTigerData <path to tiger data shape file>
+ - add zone_mapper to your INSTALLED_APPS django setting
+ - run ./manage.py syncdb
+ - navigate to django admin/zone_mapper
+ - configure a 'zone' or two (fill color, border width and color)
+ - configure a number of 'zipcodes' and associate them with a existing 'zone'
+ - run ./manage.py loadtigerdata
+ - run ./manage.py buildkml
+
+More detail on the two commands:
+
+ 1. ./manage.py loadtigerdata <path to tiger data shape file>
 
     The tiger data shape file is a public file provided by the census.  For
     example, the 2009 one is available in the zip file:
@@ -21,7 +30,7 @@ ran multiple times.
 
     Running this command loads the needed zcta's into your database.
 
- 2. ./manage.py buildKml > name_me.kml
+ 2. ./manage.py buildkml > name_me.kml
 
     This command builds the kml file you want from the zcta's in your
     database, and pushes the result to standard out.
