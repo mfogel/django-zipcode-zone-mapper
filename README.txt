@@ -30,8 +30,9 @@ More detail on the two commands:
 
     Running this command loads the needed zcta's into your database.
 
- 2. ./manage.py buildkml > name_me.kml
+ 2. ./manage.py buildkml [-z] <fileout, usually *.km(l|z)>
 
     This command builds the kml file you want from the zcta's in your
-    database, and pushes the result to standard out.
+    database.  If the '-z' option is set, output is compressed with zlib.
+    This is good if you want to make a .kmz file.
 
