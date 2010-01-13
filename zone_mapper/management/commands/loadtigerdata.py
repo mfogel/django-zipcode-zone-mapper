@@ -4,7 +4,6 @@
 # and http://geodjango.org/docs/tutorial.html
 
 from os.path import abspath
-from warnings import warn
 
 from django.core.management.base import LabelCommand
 
@@ -38,10 +37,12 @@ class ZctaLayer(Layer):
 
         self._pknum = len(self._pkorder)
 
+    def get_missed_zipcodes(self):
+        missed = []
         for zipcode in ZipCode.objects.all():
             if not self._pk2ftnum.has_key(zipcode.pk):
-                warn("Zip Code %i in db but not in shape file, ignoring." %
-                     zipcode.zipcode, RuntimeWarning)
+                missed.append(zipcode)
+        return missed
 
     def __getitem__(self, index):
         # adpting logic from Layer.__getitem__
@@ -75,10 +76,15 @@ class ZctaLayer(Layer):
 
 class ZctaSource(DataSource):
 
+    def __init__(self, *args, **kwargs):
+        super(ZctaSource, self).__init__(*args, **kwargs)
+        self._data_sources = {}
+
     def __getitem__(self, index):
-        item = super(ZctaSource, self).__getitem__(index)
-        betterItem = ZctaLayer(item.ptr, item._ds)
-        return betterItem
+        if not self._data_sources.has_key(index):
+            item = super(ZctaSource, self).__getitem__(index)
+            self._data_sources[index] = ZctaLayer(item.ptr, item._ds)
+        return self._data_sources[index]
 
 
 class Command(LabelCommand):
@@ -98,7 +104,15 @@ class Command(LabelCommand):
 
     def handle_label(self, tigerpath, **options):
 
-        ds = ZctaSource(abspath(tigerpath))
-        lm = LayerMapping(Zcta, ds, Command.zcta_mapping)
+        datasource = ZctaSource(abspath(tigerpath))
+        lm = LayerMapping(Zcta, datasource, Command.zcta_mapping)
+
+        # warn about possible mispelled zipcodes
+        if options.get('verbosity', 1):
+            for layer in datasource:
+                for zipcode in layer.get_missed_zipcodes():
+                    print(("Warning: Zip Code %i in db but not in shape "
+                           "file, ignoring.") % zipcode.zipcode)
+
         lm.save()
 

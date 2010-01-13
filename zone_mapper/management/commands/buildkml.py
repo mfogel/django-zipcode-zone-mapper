@@ -1,7 +1,6 @@
 
 import re
 import sys
-from warnings import warn
 from xml.etree.ElementTree import Element as Elm, SubElement as SubElm, \
                                   ElementTree as ElmTree
 
@@ -17,10 +16,11 @@ class Command(NoArgsCommand):
         kml = Kml()
         for zone in Zone.objects.all():
             # print warnings if some of our ZipCodes have no shp info
-            for zipcode in zone.orphan_zipcodes():
-                warn(("ZipCode %s associated with Zone %s but has no " +
-                      "shape info. Need to reload tiger data?"
-                      ) % (zipcode, zone), RuntimeWarning)
+            if options.get('verbosity', 1):
+                for zipcode in zone.orphan_zipcodes():
+                    print(("Warning: ZipCode %s associated with Zone %s but"
+                           "has no shape info. Need to reload tiger data?") % 
+                          (zipcode, zone))
 
             multipoly = zone.multipoly()
             if not multipoly:
