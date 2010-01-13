@@ -15,6 +15,36 @@ from django.contrib.gis.gdal.prototypes import ds as capi
 
 from zone_mapper.models import Zone, ZipCode, Zcta
 
+class Command(LabelCommand):
+
+    help = ("Loads the needed data from given Tiger ZCTA SHP file into "
+            "the database")
+    args = "tigerpath"
+    label = "path to a Tiger ZCTA SHP file"
+
+    zcta_mapping = {
+        'zipcode' : {'zipcode': 'ZCTA5CE'},
+        #'classfp' : 'CLASSFP',     # not needed
+        #'mtfcc' : 'MTFCC',         # not needed
+        #'funcstat' : 'FUNCSTAT',   # not needed
+        'geom' : 'MULTIPOLYGON',
+    }
+
+    def handle_label(self, tigerpath, **options):
+
+        datasource = ZctaSource(abspath(tigerpath))
+        lm = LayerMapping(Zcta, datasource, Command.zcta_mapping)
+
+        # warn about possible mispelled zipcodes
+        if options.get('verbosity', 1):
+            for layer in datasource:
+                for zipcode in layer.get_missed_zipcodes():
+                    print(("Warning: Zip Code %i in db but not in shape "
+                           "file, ignoring.") % zipcode.zipcode)
+
+        lm.save()
+
+
 class ZctaLayer(Layer):
 
     def __init__(self, layer_ptr, ds):
@@ -85,34 +115,4 @@ class ZctaSource(DataSource):
             item = super(ZctaSource, self).__getitem__(index)
             self._data_sources[index] = ZctaLayer(item.ptr, item._ds)
         return self._data_sources[index]
-
-
-class Command(LabelCommand):
-
-    help = "Loads the needed data from given Tiger ZCTA SHP file into " + \
-           "the database"
-    args = "tigerpath"
-    label = "path to a Tiger ZCTA SHP file"
-
-    zcta_mapping = {
-        'zipcode' : {'zipcode': 'ZCTA5CE'},
-        #'classfp' : 'CLASSFP',     # not needed
-        #'mtfcc' : 'MTFCC',         # not needed
-        #'funcstat' : 'FUNCSTAT',   # not needed
-        'geom' : 'MULTIPOLYGON',
-    }
-
-    def handle_label(self, tigerpath, **options):
-
-        datasource = ZctaSource(abspath(tigerpath))
-        lm = LayerMapping(Zcta, datasource, Command.zcta_mapping)
-
-        # warn about possible mispelled zipcodes
-        if options.get('verbosity', 1):
-            for layer in datasource:
-                for zipcode in layer.get_missed_zipcodes():
-                    print(("Warning: Zip Code %i in db but not in shape "
-                           "file, ignoring.") % zipcode.zipcode)
-
-        lm.save()
 

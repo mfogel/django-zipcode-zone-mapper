@@ -1,24 +1,25 @@
 
 import re
-import sys
 from xml.etree.ElementTree import Element as Elm, SubElement as SubElm, \
                                   ElementTree as ElmTree
 
-from django.core.management.base import NoArgsCommand
+from django.core.management.base import LabelCommand
 
 from zone_mapper.models import Zone
 
-class Command(NoArgsCommand):
+class Command(LabelCommand):
 
-    help = "Builds the KML file for the current database contents.  Output to stdout."
+    help = "Builds the KML file for the current database contents."
+    args = 'filepath'
+    label = "file to dump kml data into"
 
-    def handle_noargs(self, **options):
+    def handle_label(self, filepath, **options):
         kml = Kml()
         for zone in Zone.objects.all():
             # print warnings if some of our ZipCodes have no shp info
             if options.get('verbosity', 1):
                 for zipcode in zone.orphan_zipcodes():
-                    print(("Warning: ZipCode %s associated with Zone %s but"
+                    print(("Warning: ZipCode %s associated with Zone '%s' but "
                            "has no shape info. Need to reload tiger data?") % 
                           (zipcode, zone))
 
@@ -30,7 +31,10 @@ class Command(NoArgsCommand):
             for poly in multipoly:
                 kml.add_poly(poly, zone.name)
 
-        kml.write(sys.stdout)
+        fh = open(filepath, 'w')
+        kml.write(fh)
+        fh.close()
+
 
 class Kml:
 
