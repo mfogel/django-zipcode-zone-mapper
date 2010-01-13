@@ -1,5 +1,8 @@
 
 import re
+import os
+from optparse import make_option
+import zipfile
 from xml.etree.ElementTree import Element as Elm, SubElement as SubElm, \
                                   ElementTree as ElmTree
 
@@ -10,10 +13,15 @@ from zone_mapper.models import Zone
 class Command(LabelCommand):
 
     help = "Builds the KML file for the current database contents."
-    args = 'filepath'
+    args = '<fileout>'
     label = "file to dump kml data into"
 
-    def handle_label(self, filepath, **options):
+    option_list = LabelCommand.option_list + (
+        make_option('-z', dest='zip', action='store_true',
+                    help="output in zipped format (good for *.kmz)"),
+    )
+
+    def handle_label(self, fileout, **options):
         kml = Kml()
         for zone in Zone.objects.all():
             # print warnings if some of our ZipCodes have no shp info
@@ -31,9 +39,22 @@ class Command(LabelCommand):
             for poly in multipoly:
                 kml.add_poly(poly, zone.name)
 
-        fh = open(filepath, 'w')
+        # if we want the final output to be zipped, use a temp file
+        fileout_org = fileout
+        if options.get('zip', False):
+            # if the file inside of the kmz file we're making doesn't end
+            # in a '.kml', then google maps barfs when trying to load it
+            fileout += '.tmp.kml'
+
+        fh = open(fileout, 'w')
         kml.write(fh)
         fh.close()
+
+        if options.get('zip', False):
+            fh = zipfile.ZipFile(fileout_org, 'w', zipfile.ZIP_DEFLATED)
+            fh.write(fileout)
+            fh.close()
+            os.remove(fileout)
 
 
 class Kml:

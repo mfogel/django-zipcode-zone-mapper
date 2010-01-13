@@ -19,7 +19,7 @@ class Command(LabelCommand):
 
     help = ("Loads the needed data from given Tiger ZCTA SHP file into "
             "the database")
-    args = "tigerpath"
+    args = "<tigershapefile>"
     label = "path to a Tiger ZCTA SHP file"
 
     zcta_mapping = {
