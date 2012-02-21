@@ -5,8 +5,6 @@
 from django.contrib.gis.db import models
 from django.contrib.gis.geos.collections import MultiPolygon
 
-# 900913 is the 'google SRID' (meaning mercator)
-SRID = 900913
 
 class Zone(models.Model):
     objects = models.GeoManager()
@@ -45,6 +43,7 @@ class ZipCode(models.Model):
 
     class Meta:
         verbose_name = 'Zip Code'
+        ordering = ['zipcode',]
 
     # FIXME: min/max bounds?
     zipcode = models.IntegerField(unique=True, verbose_name='Zip Code')
@@ -63,6 +62,4 @@ class Zcta(models.Model):
     #classfp = models.CharField(max_length=2)    # don't need
     #mtfcc = models.CharField(max_length=5)      # don't need
     #funcstat = models.CharField(max_length=1)   # don't need
-    geom = models.MultiPolygonField(srid=SRID)
-
-
+    geom = models.MultiPolygonField()
