@@ -1,12 +1,16 @@
+"""
+Zone Mapper database layer.
 
-# adpated from:
-# ./manage.py ogrinspect tiger_data/tl_2008_us_zcta5.shp zcta --mapping --multi
+Adpated from:
+./manage.py ogrinspect tiger_data/tl_2008_us_zcta5.shp zcta --mapping --multi
+"""
 
 from django.contrib.gis.db import models
 from django.contrib.gis.geos.collections import MultiPolygon
 
 
 class Zone(models.Model):
+    "A set of ZipCodes with a particular color and border"
     objects = models.GeoManager()
 
     name = models.CharField(unique=True, max_length=31)
@@ -40,22 +44,25 @@ class Zone(models.Model):
 
 
 class ZipCode(models.Model):
+    "ZipCodes that make up a Zone"
 
     class Meta:
         verbose_name = 'Zip Code'
         ordering = ['zipcode',]
 
-    # FIXME: min/max bounds?
+    # TODO: min/max bounds?
     zipcode = models.IntegerField(unique=True, verbose_name='Zip Code')
     zone = models.ForeignKey(Zone)
 
     def __unicode__(self):
         return '%05i' % self.zipcode
 
+
 class Zcta(models.Model):
+    "Shape information for a ZipCode. Filled in from tiger data."
     objects = models.GeoManager()
 
-    # FIXME: min/max bounds?
+    # TODO: min/max bounds?
     zipcode = models.OneToOneField(ZipCode, primary_key=True,
                                    db_column='zipcode', to_field='zipcode')
 

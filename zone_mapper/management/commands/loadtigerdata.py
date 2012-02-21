@@ -1,9 +1,15 @@
+"""
+Command to load tiger data into db.
 
-# adpated from:
-# ./manage.py ogrinspect ../../tiger_data/tl_2008_us_zcta5.shp zcta --mapping --multi
-# and http://geodjango.org/docs/tutorial.html
+Only the shape data that's needed is loaded - rest is skipped to keep time
+and space requirements down.
 
-from os.path import abspath
+Originally adpated from:
+./manage.py ogrinspect ../../tiger_data/tl_2008_us_zcta5.shp zcta --mapping --multi
+and http://geodjango.org/docs/tutorial.html
+"""
+
+import os
 
 from django.core.management.base import LabelCommand
 
@@ -14,6 +20,7 @@ from django.contrib.gis.utils import LayerMapping
 from django.contrib.gis.gdal.prototypes import ds as capi
 
 from zone_mapper.models import Zone, ZipCode, Zcta
+
 
 class Command(LabelCommand):
 
@@ -32,7 +39,7 @@ class Command(LabelCommand):
 
     def handle_label(self, tigerpath, **options):
 
-        datasource = ZctaSource(abspath(tigerpath))
+        datasource = ZctaSource(os.path.abspath(tigerpath))
         lm = LayerMapping(Zcta, datasource, Command.zcta_mapping)
 
         # warn about possible mispelled zipcodes
@@ -46,6 +53,14 @@ class Command(LabelCommand):
 
 
 class ZctaLayer(Layer):
+    """
+    Layer that when iterated over only yields Zcta's that already have
+    a corresponding ZipCode object in the database.
+
+    In the event that your ZipCodes only cover a small portion of the
+    entire tiger data set, using this Layer override results in significant
+    time and space savings (since only your needed data is loaded).
+    """
 
     def __init__(self, layer_ptr, ds):
         super(ZctaLayer, self).__init__(layer_ptr, ds)
@@ -105,6 +120,7 @@ class ZctaLayer(Layer):
 
 
 class ZctaSource(DataSource):
+    "DataSource that uses our ZctaLayers instead of the default"
 
     def __init__(self, *args, **kwargs):
         super(ZctaSource, self).__init__(*args, **kwargs)
@@ -115,4 +131,3 @@ class ZctaSource(DataSource):
             item = super(ZctaSource, self).__getitem__(index)
             self._data_sources[index] = ZctaLayer(item.ptr, item._ds)
         return self._data_sources[index]
-

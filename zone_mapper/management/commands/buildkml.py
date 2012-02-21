@@ -1,14 +1,15 @@
-
 import re
+import optparse
 import os
-from optparse import make_option
 import zipfile
+
 from xml.etree.ElementTree import Element as Elm, SubElement as SubElm, \
                                   ElementTree as ElmTree
 
 from django.core.management.base import LabelCommand
 
 from zone_mapper.models import Zone
+
 
 class Command(LabelCommand):
 
@@ -17,8 +18,10 @@ class Command(LabelCommand):
     label = "file to dump kml data into"
 
     option_list = LabelCommand.option_list + (
-        make_option('-z', dest='zip', action='store_true',
-                    help="output in zipped format (good for *.kmz)"),
+        optparse.make_option(
+            '-z', dest='zip', action='store_true',
+            help="output in zipped format (good for *.kmz)"
+        ),
     )
 
     def handle_label(self, fileout, **options):
@@ -57,7 +60,8 @@ class Command(LabelCommand):
             os.remove(fileout)
 
 
-class Kml:
+class Kml(object):
+    "Constructor to take care of actually building the kml file."
 
     # stuff to format indenting nicely
     _indent_step = '  '
@@ -128,4 +132,3 @@ class Kml:
     def add_simple_child_tag(self, parent_elm, tagname, tagtext):
         child = SubElm(parent_elm, tagname)
         child.text = '%s' % tagtext
-
